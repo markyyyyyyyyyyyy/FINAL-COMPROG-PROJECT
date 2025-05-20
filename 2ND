@@ -1,0 +1,1527 @@
+#include <iostream>
+#include <string.h>
+#include <windows.h>
+#include <conio.h>
+#include<unistd.h>
+#include <vector>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <set>
+#include <algorithm>
+#include <cmath>
+using namespace std;
+
+struct RentalRequest{
+ string customerUsername;
+    string brand;
+    string platenumber;
+    int duration;
+    float cost;
+    string status;         
+    string rentalDate;  
+    string returnDate; 
+
+};
+
+
+
+vector<RentalRequest> rentalhistory;
+vector<RentalRequest> pendingRequests;
+
+void saveRentalHistoryToFile(const vector<RentalRequest>& rentalhistory) {
+    ofstream file("rentalhistory.txt");
+    if (!file.is_open()) {
+        cout << "Error opening rentalhistory.txt for writing.\n";
+        return;
+    }
+
+    for (const auto& req : rentalhistory) {
+        // Assume durationType "Week" if cost/duration > 7, else "Day"
+        string durationType = (req.duration > 0 && req.cost / req.duration > 7) ? "Week" : "Day";
+
+        file << req.customerUsername << '|'
+             << req.platenumber << '|'
+             << req.cost << '|'
+             << durationType << '|'
+             << req.duration << '|'
+             << req.status << '\n';
+    }
+    file.close();
+}
+
+void loadRentalHistoryFromFile(vector<RentalRequest>& rentalhistory) {
+    ifstream file("rentalhistory.txt");
+    if (!file.is_open()) {
+        cout << "rentalhistory.txt not found, starting fresh.\n";
+        return;
+    }
+
+    rentalhistory.clear();
+    string line;
+
+    while (getline(file, line)) {
+        istringstream ss(line);
+        string token;
+
+        RentalRequest req;
+        string durationType;
+
+        if (getline(ss, token, '|')) req.customerUsername = token;
+        if (getline(ss, token, '|')) req.platenumber = token;
+        if (getline(ss, token, '|')) req.cost = stof(token);
+        if (getline(ss, token, '|')) durationType = token;
+        if (getline(ss, token, '|')) req.duration = stoi(token);
+        if (getline(ss, token, '|')) req.status = token;	
+
+        rentalhistory.push_back(req);
+    }
+    file.close();
+}
+
+struct User{
+string name;
+string username;
+string password;
+string role;
+};
+vector<User> users;
+
+
+class Car{
+    public:
+    string brand;
+    string model;
+    vector<string> platenum;
+    int mincost;
+    int maxcost;
+    bool availability;
+
+
+Car(string b, string m, vector<string> p, int maxc, int minc){
+brand = b;
+model = m;
+platenum = p;
+mincost = minc;
+maxcost = maxc;
+availability = true;
+}
+
+bool isAvailable() const {
+        return !platenum.empty();
+    }
+bool removePlate(const string& plate) {
+        auto it = find(platenum.begin(), platenum.end(), plate);
+        if (it != platenum.end()) {
+            platenum.erase(it);
+            return true;
+        }
+        return false;
+    }
+void display() const{
+cout << "Brand: " << brand
+<< " | |" << "\tModel: " << model
+<< " \t| |" << "\tPlate Number: ";
+        for(size_t i = 0; i < platenum.size(); ++i) {
+            cout << platenum[i];
+            if (i < platenum.size() - 1) cout << ", ";
+        }
+cout << " \t| | Rental Cost: (pesos))" << mincost << "- (pesos))" << maxcost
+<< " \t| |" << "\tStatus: " << (availability ? "Available" : "Rented/Not Avaiable") << endl;
+}
+
+};
+void saveUsersToFile() {
+    ofstream outFile("users.txt");
+    for (const auto& user : users) {
+        outFile << user.name << "|" << user.username << "|" << user.password << "|" << user.role << "\n";
+    }
+    outFile.close();
+}
+
+void loadUsersFromFile() {
+    ifstream inFile("users.txt");
+    users.clear();
+    string line;
+    while (getline(inFile, line)) {
+        stringstream ss(line);
+        User user;
+        getline(ss, user.name, '|');
+        getline(ss, user.username, '|');
+        getline(ss, user.password, '|');
+        getline(ss, user.role, '|');
+        users.push_back(user);
+    }
+    inFile.close();
+}
+
+
+
+
+void seedDefaultUsers() {
+
+    User defaultAdmin;
+    User defaultEmployee;
+    User defaultCostumer;
+    defaultAdmin.name = "ADMIN MARK";
+    defaultAdmin.username = "admin";
+    defaultAdmin.password = "a";
+    defaultAdmin.role = "admin";
+    users.push_back(defaultAdmin);
+
+    defaultEmployee.name = "Mark Alcayde";
+    defaultEmployee.username = "a";
+    defaultEmployee.password = "a";
+    defaultEmployee.role = "employee";
+    users.push_back(defaultEmployee);
+
+    defaultCostumer.name = "Costumer Mark";
+    defaultCostumer.username = "q";
+    defaultCostumer.password = "q";
+    defaultCostumer.role = "costumer";
+    users.push_back(defaultCostumer);
+}
+class rentsys{
+private:
+    vector<Car> cars;
+
+public:
+    void allcars(){
+    cars.push_back(Car("Toyota", "Vios, Innova, Fortuner", {"CDB 4634", "UBT 4667", "UBT 3676"}, 2500, 4500));
+    cars.push_back(Car("Honda", "City, Civic, CR-V", {"TTC 3871", "TTK 4437", "TTY 8778"}, 2500, 4500));
+    cars.push_back(Car("Mitsubishi", "Mirage, Montero Sport", {"GPE 2397", "EPG 7072", "JPR 7301"}, 2000, 4000));
+    cars.push_back(Car("Nissan", "Almera, Navara, Terra", {"CTC 2573", "CYO 7971", "OYS 8310"}, 2500, 4500));
+    cars.push_back(Car("Hyundai", "Accent, Tucson", {"CTC 2573", "CYO 7971", "OYS 8310"}, 2500, 4500));
+    cars.push_back(Car("Kia", "Picanto, Sportage", {"TYC 0001", "YSY 7281"}, 2000, 4000));
+    cars.push_back(Car("Ford", "Ranger, Everest", {"YTY 8282", "POA 0911"}, 3000, 5000));
+    cars.push_back(Car("Chevrolet", "Spark, Trailblazer", {"MMO 3311", "MMM 0098"}, 2500, 4500));
+    cars.push_back(Car("Mazda", "Mazda 2, CX-5", {"POT 9821", "NXT 8882"}, 2500, 4500));
+    cars.push_back(Car("Suzuki", "Swift, Ertiga", {"SWD 7272", "MMA 8766"}, 2000, 3500));
+    cars.push_back(Car("Subaru", "Forester, XV", {"MOA 6612", "MAL 0043"}, 3000, 5000));
+    cars.push_back(Car("Volkswagen", "3 Series, X3", {"NEU 7722", "NYW 7627"}, 5000, 8000));
+    cars.push_back(Car("BMW", "City, Civic, CR-V", {"TTC 3871", "TTK 4437", "TTY 8778"}, 2500, 4500));
+    cars.push_back(Car("Mercedes-Benz", "C-Class, GLC", {"POA 7621", "TOL 7509"}, 6000, 9000));
+    cars.push_back(Car("Audi", "A4, Q5", {"AUK 0493", "KOM 7784"}, 6000, 9000));
+    cars.push_back(Car("Lexus", "ES, RX", {"KOW 8822", "MOL 9928"}, 6000, 9000));
+    cars.push_back(Car("Isuzu", "D-Max, mu-X", {"NTX 2891", "TOP 2938"}, 3000, 5000));
+    cars.push_back(Car("Chery", "Tiggo Series", {"POL 9273", "HGF 0192"}, 2500, 4000));
+    cars.push_back(Car("Geely", "Coolray, Azkarra", {"OWT 0129", "YUT 8778"}, 2500, 4000));
+    cars.push_back(Car("Foton", "Gratour, Toano", {"OIW 0987", "EWM 8789"}, 2500, 4500));
+}
+
+
+    void chooseCarBrand() {
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    set<string> uniqueBrands;
+    vector<string> brandList;
+
+
+    for (const auto& car : cars) {
+        uniqueBrands.insert(car.brand);
+    }
+
+    brandList.assign(uniqueBrands.begin(), uniqueBrands.end());
+
+
+    	SetConsoleTextAttribute(h,4);
+	cout << "\n\n                                                                             " << (char)218; // +
+    for (int i = 0; i < 60; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "                                                                                                   AVAILABLE CAR BRANDS\n\n";
+    for (size_t i = 0; i < brandList.size(); ++i) {
+    cout << "                                                                                              [" << i + 1 << "] " << brandList[i] << endl;
+    }
+
+
+    int selectedIndex;
+    SetConsoleTextAttribute(h,4);
+    cout << "                                                                             " << (char)192; // +
+    for (int i = 0; i < 60; i++) cout << (char)198;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "\n\n                                                                                  Enter the number of the brand you want to view: ";
+    cin >> selectedIndex;
+    SetConsoleTextAttribute(h,4);
+    cout << "\n\n\n" << (char)218; // +
+    for (int i = 0; i < 208; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+
+    if (selectedIndex < 1 || selectedIndex > (int)brandList.size()) {
+        cout << "Invalid selection.\n";
+        return;
+    }
+
+    string selectedBrand = brandList[selectedIndex - 1];
+    cout << "\n--- Cars for Brand: " << selectedBrand << " ---\n";
+
+    bool found = false;
+    for (const auto& car : cars) {
+        if (car.brand == selectedBrand && car.availability) {
+            car.display();
+            found = true;
+        }
+    }
+
+    if (!found) {
+        cout << "No available cars for this brand.\n";
+    }
+
+    cout << "\nPress any key to return to menu...";
+    getch();
+    system("cls");
+}
+vector<Car>& getCars() {
+        return cars;
+    }
+    };
+
+
+void admin();
+void costumerMenu(User& costumer);
+void employee(const User& employee);
+void welcome();
+
+
+
+
+rentsys rentalSystem;
+void rentCar(User& costumer) {
+    system("cls");
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(h,2);
+	cout << "\n                                              " << (char)218; // +
+    for (int i = 0; i < 20; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "\n                                                --- RENT A CAR ---" << endl;
+    SetConsoleTextAttribute(h,2);
+	cout << "\n                                              " << (char)192; // +
+	for (int i = 0; i < 20; i++) cout << (char)198;
+    cout << (char)217 << endl; // +
+
+    vector<Car>& cars = rentalSystem.getCars();
+    set<string> uniqueBrands;
+
+
+    for (const auto& car : cars) {
+        if (car.isAvailable()) {
+            uniqueBrands.insert(car.brand);
+        }
+    }
+
+    if (uniqueBrands.empty()) {
+        cout << "No available cars to rent.\n";
+        system("pause");
+        system("cls");
+        return;
+    }
+
+
+    vector<string> brandList(uniqueBrands.begin(), uniqueBrands.end());
+    
+	 SetConsoleTextAttribute(h,2);
+	cout << "\n\n                                                                             " << (char)218; // +
+    for (int i = 0; i < 60; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "\n                                                                                                   AVAILABLE CAR BRANDS\n\n";
+    for (size_t i = 0; i < brandList.size(); ++i) {
+        cout << "                                                                                              [" << i + 1 << "] " << brandList[i] << endl;
+    }
+
+	SetConsoleTextAttribute(h,2);
+    cout << "                                                                             " << (char)192; // +
+    for (int i = 0; i < 60; i++) cout << (char)198;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    int brandChoice;
+    cout << "\n\n                                                                                  Enter the number of the brand you want to view: ";
+    cin >> brandChoice;
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n" << (char)218; // +
+    for (int i = 0; i < 208; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+
+    if (brandChoice < 1 || brandChoice > (int)brandList.size()) {
+        cout << "Invalid selection.\n";
+        system("pause");
+        system("cls");
+        return;
+    }
+
+    string selectedBrand = brandList[brandChoice - 1];
+    cout << "\n--- Cars for Brand: " << selectedBrand << " ---\n";
+
+
+    vector<Car*> availableCars;
+for (auto& car : cars) {
+    if (car.brand == selectedBrand && car.isAvailable()) {
+        car.display();
+        availableCars.push_back(&car);
+    }
+    }
+
+
+    if (availableCars.empty()) {
+        cout << "No available cars for this brand.\n";
+        system("pause");
+        system("cls");
+        return;
+    }
+
+
+    vector<string> allPlates;
+for (const auto* carPtr : availableCars) {
+    for (const auto& plate : carPtr->platenum) {
+        allPlates.push_back(plate);
+    }
+}
+
+    cout << "\nAvailable Plate Numbers:\n";
+    for (size_t i = 0; i < allPlates.size(); ++i) {
+        cout << "[" << i + 1 << "] " << allPlates[i] << endl;
+    }
+
+    int plateChoice;
+    cout << "\nEnter the number of the plate you want to rent: ";
+    cin >> plateChoice;
+
+    if (plateChoice < 1 || plateChoice > (int)allPlates.size()) {
+        cout << "Invalid selection.\n";
+        system("pause");
+        system("cls");
+        return;
+    }
+
+    string chosenPlate = allPlates[plateChoice - 1];
+    int paymentoption;
+    int duration;
+    cout << "\nSelect payment method: " << endl;
+    cout << "[1] - Per Day" << endl;
+    cout << "[2] = Per Week" << endl;
+    cout << "Choice: ";
+    cin >> paymentoption;
+
+    if(paymentoption != 1 && paymentoption != 2){
+        cout << "Invalid payment selection \n\n";
+        system("pause");
+        system("cls");
+        return;
+    }
+
+    cout << "\nEnter number of " << (paymentoption == 1 ? "days" : "weeks") << ": ";
+    cin >> duration;
+
+    bool plateFound = false;
+    for (auto& car : cars) {
+    int averagecost = (car.mincost + car.maxcost) / 2;
+    int totalcost = averagecost * duration;
+
+
+       if (find(car.platenum.begin(), car.platenum.end(), chosenPlate) != car.platenum.end()) {
+    if (!car.isAvailable()) {
+        cout << "The car with plate " << chosenPlate << " is already rented.\n";
+        plateFound = true;
+        break;
+    }
+
+
+    int averagecost = (car.mincost + car.maxcost) / 2;
+    int totalcost = averagecost * duration;
+    if (paymentoption == 2) {
+        totalcost *= 7;
+    }
+
+    cout << "\nEstimated Rental Cost for " << duration
+         << (paymentoption == 1 ? " days" : " weeks")
+         << ": â‚±" << totalcost << endl;
+
+     char confirmation;
+            cout << "Do you want to proceed with the rental? (Y = Yes, N = No): ";
+            cin >> confirmation;
+
+            if (confirmation == 'y' || confirmation == 'Y') {
+    car.removePlate(chosenPlate);
+    car.availability = !car.platenum.empty();
+
+    RentalRequest request;
+    request.customerUsername = costumer.username;
+    request.brand = car.brand;             // use current car
+    request.platenumber = chosenPlate;     // the chosen plate
+    request.duration = duration;
+
+   
+    request.cost = totalcost;
+
+    request.status = "Pending";
+    request.rentalDate = "N/A";
+    request.returnDate = "N/A";
+
+    pendingRequests.push_back(request);
+    rentalhistory.push_back(request);
+	saveRentalHistoryToFile(rentalhistory);
+    cout << "\n Please wait for the approval.\n";
+    sleep(1);
+    system("cls");
+    return;
+}
+}
+}
+}
+
+
+
+
+void loginpage(){
+   int cont;
+    char ch;
+    bool error = false;
+    bool loggedIn = false;
+
+    string inputusername, inputpassword;
+    while(true){
+            if(error == true){
+    cout << "Credentials Mismatched!" << endl;
+}
+HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(h,1);
+cout << "\n\n\n\n\n\n                                            " << (char)218; // +
+    for (int i = 0; i < 123; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,3);
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "             @   @ @@@@@ @      @@@@  @@@  @   @ @@@@@   @@@@@  @@@      @@@@  @@@  @@@@  @   @ @   @ @@@@   @             ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl;
+	cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "             @   @ @     @     @     @   @ @@ @@ @         @   @   @    @     @   @ @   @ @   @ @   @ @   @  @             ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl;
+    cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "             @ @ @ @@@   @     @     @   @ @ @ @ @@@       @   @   @    @     @@@@@ @@@@  @@@@@ @   @ @@@@   @             ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl; // Â¦ message Â¦
+	cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "             @@ @@ @     @     @     @   @ @   @ @         @   @   @    @     @   @ @  @  @   @ @   @ @   @                ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl;
+	cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "             @   @ @@@@@ @@@@@  @@@@  @@@  @   @ @@@@@     @    @@@      @@@@ @   @ @   @ @   @  @@@  @@@@   @             ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,1);
+	cout << "             _________________________________________________________________________________________________             ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl;
+	cout << "                                            " << (char)179;
+	SetConsoleTextAttribute(h,1);
+	cout << "                ___________________________________________________________________________________________                ";
+	SetConsoleTextAttribute(h,3);
+	cout << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)179 << "                                                                                                                           " << (char)179 << endl;
+	cout << "                                            " << (char)192; // +
+    for (int i = 0; i < 123; i++) cout << (char)196;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,1);
+    cout << "\n\n\n";
+    cout << "                                                                                  " << (char)218; // +
+    for (int i = 0; i < 50; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+cout << "\n\n                                                                                               Username: ";
+cin >> inputusername;
+cout << "                                                                                               Password: ";
+inputpassword = "";
+while ((ch = _getch()) != '\r'){
+        if (ch == '\b') {
+            if (!inputpassword.empty()) {
+               inputpassword.erase(inputpassword.size() - 1);
+                cout << "\b \b";
+            }
+        } else {
+            inputpassword += ch;
+            cout << '*';
+        }
+    }
+    cout << "\n\n\n";
+	SetConsoleTextAttribute(h,1);
+	cout << "                                                                                  " << (char)192; // +
+	for (int i = 0; i < 50; i++) cout << (char)198;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "\n\n\n                                                                                Do you wish to continue? [1] Log In, [2] Back (choice): ";
+    cin >> cont;
+    cin.clear();
+
+    switch(cont){
+   case 1:
+    for (auto& user : users) {
+    if (user.username == inputusername && user.password == inputpassword) {
+            error = false;
+            loggedIn = true;
+        if (user.role == "admin") {
+                system("cls");
+            admin();
+        } else if (user.role == "costumer") {
+            system("cls");
+            costumerMenu(user);
+        } else if (user.role == "employee"){
+            system("cls");
+        employee(user);
+        }
+
+        return;
+    }
+
+}
+  if (!loggedIn) {
+        error = true;
+        system("cls");
+        break;
+    }
+   case 2:
+    cout << "\n\n\n\n                       Please wait...";
+    sleep(1);
+    welcome();
+    break;
+
+   default:
+    cout << "Invalid choices";
+    break;
+    }
+
+system("cls");
+
+
+}
+system("cls");
+}
+
+void registerpage(){
+User newUser;
+HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+SetConsoleTextAttribute(h,14);
+    cout << "\n\n\n\n\n\n\n\n\n\n                                                                                      " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+	cout << "                                                                                      " << (char)179 << "                                          " << (char)179 << endl;
+	cout << "                                                                                      " << (char)179 << "                                          " << (char)179 << endl;
+	cout << "                                                                                      " << (char)179 << "                                          " << (char)179 << endl;
+	cout << "                                                                                      " << (char)179;
+	SetConsoleTextAttribute(h,15);
+	cout << "         === Register Account ===         ";
+	SetConsoleTextAttribute(h,14);
+	cout << (char)179 << endl;
+	cout << "                                                                                      " << (char)179 << "                                          " << (char)179 << endl;
+	cout << "                                                                                      " << (char)179 << "                                          " << (char)179 << endl;
+	cout << "                                                                                      " << (char)179 << "                                          " << (char)179 << endl;
+	cout << "                                                                                      " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)196;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,14);
+    cout << "\n\n\n                                                                                         " << (char)218; // +
+    for (int i = 0; i < 36; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "\n\n                                                                                               Enter your name: ";
+    cin.ignore();
+    getline(cin, newUser.name);
+
+    cout << "                                                                                               Choose a username: ";
+    cin >> newUser.username;
+
+    cout << "                                                                                               Choose a password: ";
+    newUser.password = "";
+    char ch;
+    while ((ch = _getch()) != '\r') {
+        if (ch == '\b') {
+            if (!newUser.password.empty()) {
+                newUser.password.pop_back();
+                cout << "\b \b";
+            }
+        } else {
+            newUser.password += ch;
+            cout << '*';
+        }
+    }
+    cout << endl;
+    cout << "\n\n";
+    SetConsoleTextAttribute(h,14);
+    cout << "                                                                                         " << (char)192; // +
+	for (int i = 0; i < 36; i++) cout << (char)198;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,15);
+
+    newUser.role = "costumer";
+
+    for (const auto& user : users) {
+        if (user.username == newUser.username) {
+            cout << "\n\n\n\n\n\n                    Username already exists. Please try again.\n";
+            Sleep(2000);
+            system("cls");
+            return;
+        }
+    }
+
+    users.push_back(newUser);
+    cout << "\n\n\n\n\n\n                    Account successfully created! You can now log in.\n";
+    Sleep(2000);
+    saveUsersToFile();
+    system("cls");
+    welcome();
+
+}
+
+void welcome(){
+   HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    int choice;
+    while(choice != 3){
+    SetConsoleTextAttribute(h,10);
+	cout << "\n\n\n\n\n\n                                                                             " << (char)218; // +
+    for (int i = 0; i < 60; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+	cout << "                                                                             " << (char)179 << "                                                            " << (char)179 << endl;
+	cout << "                                                                             " << (char)179 << "                                                            " << (char)179 << endl;
+	cout << "                                                                             " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "             @@@@  @@@  @@@@   @   @ @   @ @@@@             ";
+	SetConsoleTextAttribute(h,2);
+	cout << (char)179 << endl;
+	SetConsoleTextAttribute(h,14);
+	cout << "                                                                             " << (char)179;
+	cout << "            @     @   @ @   @  @   @ @   @ @   @            ";
+	SetConsoleTextAttribute(h,14);
+	cout << (char)179 << endl;
+    cout << "                                                                             " << (char)179;
+	cout << "            @     @@@@@ @@@@   @@@@@ @   @ @@@@             ";
+	SetConsoleTextAttribute(h,14);
+	cout << (char)179 << endl; // Â¦ message Â¦
+	cout << "                                                                             " << (char)179;
+	cout << "            @     @   @ @  @   @   @ @   @ @   @            ";
+	SetConsoleTextAttribute(h,14);
+	cout << (char)179 << endl;
+	cout << "                                                                             " << (char)179;
+	cout << "             @@@@ @   @ @   @  @   @  @@@  @@@@             ";
+	SetConsoleTextAttribute(h,14);
+	cout << (char)179 << endl;
+	cout << "                                                                             ";
+	SetConsoleTextAttribute(h,4);
+	cout << (char)179;
+	cout << "         _________________________________________          ";
+	cout << (char)179 << endl;
+	cout << "                                                                             " << (char)179;
+	cout << "           _____________________________________            ";
+	cout << (char)179 << endl;
+	cout << "                                                                             " << (char)179 << "                                                            " << (char)179 << endl;
+	cout << "                                                                             " << (char)192; // +
+    for (int i = 0; i < 60; i++) cout << (char)196;
+    cout << (char)217 << endl; // +
+    cout << "\n";
+    SetConsoleTextAttribute(h,10);
+    cout << "                                                                                         " << (char)218; // +
+    for (int i = 0; i < 36; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "             [1] Login              " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)192; // +
+	for (int i = 0; i < 36; i++) cout << (char)196;
+    cout << (char)217 << endl; // +
+    cout << "\n";
+    SetConsoleTextAttribute(h,14);
+    cout << "                                                                                         " << (char)218; // +
+	for (int i = 0; i < 36; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "            [2] Sign-up             " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)192; // +
+	for (int i = 0; i < 36; i++) cout << (char)196;
+    cout << (char)217 << endl; // +
+    cout << "\n";
+    SetConsoleTextAttribute(h,4);
+    cout << "                                                                                         " << (char)218; // +
+	for (int i = 0; i < 36; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "             [3] Exit               " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+	cout << "                                                                                         " << (char)179 << "                                    " << (char)179 << endl;
+    cout << "                                                                                         " << (char)192; // +
+    for (int i = 0; i < 36; i++) cout << (char)196;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,15);
+	cout << "\n\n                                                                                               Choice: ";
+    cin >> choice;
+
+switch(choice){
+   case 1:
+       system("cls");
+       loginpage();
+       break;
+   case 2:
+       system("cls");
+    registerpage();
+    break;
+   case 3:
+       cout << "\n\n                    Exiting CARHUB, Thank You!!";
+       sleep(1);
+       system("cls");
+    exit(0);
+    break;
+   default:
+    cout << "\n\n                    Invalid, Please choose 1, 2 or 3" << endl;
+    break;
+}
+}
+}
+
+
+void admin() {
+    int choice;
+    while (true) {
+        cout << "\n=== Admin Panel ===" << endl;
+        cout << "[1] View All Users" << endl;
+        cout << "[2] Add Employee Account" << endl;
+        cout << "[3] View All Cars" << endl;
+        cout << "[4] Logout" << endl;
+        cout << "Choice: ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1:
+                for (const auto& user : users) {
+                    cout << "Name: " << user.name << " | Role: " << user.role << endl;
+                }
+                break;
+            case 2: {
+                User newEmp;
+                cout << "Enter employee name: ";
+                cin.ignore(); getline(cin, newEmp.name);
+                cout << "Enter username: ";
+                cin >> newEmp.username;
+                cout << "Enter password: ";
+                char ch;
+                newEmp.password = "";
+                while ((ch = _getch()) != '\r') {
+                    newEmp.password += ch;
+                    cout << '*';
+                }
+                inputpassword = "";
+while ((ch = _getch()) != '\r'){
+        if (ch == '\b') {
+            if (!inputpassword.empty()) {
+               inputpassword.erase(inputpassword.size() - 1);
+                cout << "\b \b";
+            }
+        } else {
+            inputpassword += ch;
+            cout << '*';
+        }
+    }
+                newEmp.role = "employee";
+                users.push_back(newEmp);
+                    saveUsersToFile();
+                cout << "\nEmployee added.\n";
+                break;
+            }
+            case 3:
+                for (auto& car : rentalSystem.getCars()) {
+                    car.display();
+                }
+                break;
+
+            case 4:
+                system("cls");
+                return;
+            default:
+                cout << "Invalid choice." << endl;
+        }
+
+        system("pause");
+        system("cls");
+    }
+}
+void renthistory(const User& costumer) {
+    cout << "--- Rental History ---\n";
+    bool found = false;
+    for (const auto& req : rentalhistory) {
+        if (req.customerUsername == costumer.username) { 
+            cout << "Brand: " << req.brand
+                 << " | Plate: " << req.platenumber
+                 << " | Duration: " << req.duration << " days"
+                 << " | Total Cost: (pesos) " << req.cost
+                 << " | Status: " << req.status << endl;
+            found = true;
+        }
+    }
+
+    if (!found) {
+        cout << "No rental history found.\n";
+    }
+
+    cout << "\n";
+    system("pause");
+    system("cls");
+}
+
+
+
+
+void costumerMenu(User& costumer){
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+int choice;
+string plate;
+vector<string> brandlist;
+
+while(true){
+   SetConsoleTextAttribute(h,5);
+    cout << "\n\n\n\n                                          " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+	SetConsoleTextAttribute(h,15);
+	cout << "\n\n                                                 Hello Costumer, " << costumer.name << endl;
+	cout << "\n\n";
+	SetConsoleTextAttribute(h,5);
+	cout << "                                           " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,5);
+    cout << "\n\n\n                                           " << (char)218; // +
+    for (int i = 0; i < 122; i++) cout << (char)198; // -
+    cout << (char)191 << endl; // +
+    SetConsoleTextAttribute(h,7);
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    SetConsoleTextAttribute(h,7);
+    cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)218; // +
+    for (int i = 0; i < 35; i++) cout << (char)198; // -
+    cout << (char)191;// +
+    cout << "          ";
+    SetConsoleTextAttribute(h,2);
+    cout << (char)218; // +
+    for (int i = 0; i < 35; i++) cout << (char)198;
+    cout << (char)191;
+    SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl; // +
+    SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,2);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,2);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179 ;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)179 << "      [1] View Available Cars      " << (char)179;
+	SetConsoleTextAttribute(h,2);
+	cout << "          " << (char)179 << "           [2] Rent Cars           " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,2);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,2);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,14);
+	cout << "                   " << (char)192; // +
+	SetConsoleTextAttribute(h,14);
+	for (int i = 0; i < 35; i++) cout << (char)196;
+    cout << (char)217; // +
+    cout << "          ";
+    SetConsoleTextAttribute(h,2);
+    cout << (char)192; // +
+    for (int i = 0; i < 35; i++) cout << (char)196;
+    cout << (char)217;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl; // +
+    SetConsoleTextAttribute(h,7);
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    SetConsoleTextAttribute(h,7);
+    cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)218; // +
+    for (int i = 0; i < 35; i++) cout << (char)198; // -
+    cout << (char)191;// +
+    SetConsoleTextAttribute(h,4);
+    cout << "          ";
+    cout << (char)218; // +
+    for (int i = 0; i < 35; i++) cout << (char)198;
+    cout << (char)191;
+    SetConsoleTextAttribute(h,7);
+    cout << "                   " << (char)179 << endl; // +
+    SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,4);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,4);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)179 << "            [3] History            " << (char)179;
+	SetConsoleTextAttribute(h,4);
+	cout << "          " << (char)179 << "            [4] Log Out            " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,4);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,4);
+	cout << "          " << (char)179 << "                                   " << (char)179;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                           " << (char)179;
+	SetConsoleTextAttribute(h,3);
+	cout << "                   " << (char)192; // +
+	for (int i = 0; i < 35; i++) cout << (char)196;
+    cout << (char)217; // +
+    SetConsoleTextAttribute(h,4);
+    cout << "          ";
+    cout << (char)192; // +
+    for (int i = 0; i < 35; i++) cout << (char)196;
+    cout << (char)217;
+	SetConsoleTextAttribute(h,7);
+	cout << "                   " << (char)179 << endl; // +
+    SetConsoleTextAttribute(h,7);
+    cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+	cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+	cout << "                                           " << (char)179 << "                                                                                                                          " << (char)179 << endl;
+    SetConsoleTextAttribute(h,5);
+    cout << "                                           " << (char)192; // +
+    for (int i = 0; i < 122; i++) cout << (char)198; // -
+    cout << (char)217 << endl; // +
+    SetConsoleTextAttribute(h,15);
+    cout << "\n\n";
+    cout << "                                                  Choose: ";
+    cin >> choice;
+
+    switch(choice){
+case 1:
+    system("cls");
+    rentalSystem.chooseCarBrand();
+    break;
+case 2:
+    rentCar(const_cast<User&>(costumer));
+    break;
+case 3:
+    system("cls");
+    renthistory(costumer);
+    break;
+case 4:
+    cout << "Logging Out" << endl;
+    sleep(1);
+    system("cls");
+    return;
+    }
+}
+}
+
+void rentapproval() {
+    cout << "\n--- Rental Approval Panel ---\n";
+
+    // Filter only "Pending" requests
+    vector<size_t> pendingIndices;
+    for (size_t i = 0; i < pendingRequests.size(); ++i) {
+        if (pendingRequests[i].status == "Pending") {
+            pendingIndices.push_back(i);
+        }
+    }
+
+    if (pendingIndices.empty()) {
+        cout << "No pending rental requests.\n";
+        return;
+    }
+
+    // Display pending requests
+    for (size_t i = 0; i < pendingIndices.size(); ++i) {
+        const RentalRequest& req = pendingRequests[pendingIndices[i]];
+        cout << i + 1 << ". User: " << req.customerUsername
+             << ", Car: " << req.brand
+             << ", Plate: " << req.platenumber
+             << ", Duration: " << req.duration
+             << ", Cost: " << req.cost
+             << ", Status: " << req.status << "\n";
+    }
+
+    int choice;
+    cout << "\nEnter number of request to process (0 to cancel): ";
+    cin >> choice;
+
+    if (choice > 0 && choice <= (int)pendingIndices.size()) {
+        int actualIndex = pendingIndices[choice - 1];
+        int decision;
+
+        cout << "Choose: [1] Accept, [2] Decline: ";
+        cin >> decision;
+
+        if (decision == 1) {
+            pendingRequests[actualIndex].status = "Accepted";
+        } else if (decision == 2) {
+            pendingRequests[actualIndex].status = "Declined";
+        } else {
+            cout << "Invalid decision.\n";
+            return;
+        }
+
+     
+        rentalhistory.push_back(pendingRequests[actualIndex]);
+
+
+        pendingRequests.erase(pendingRequests.begin() + actualIndex);
+
+        
+        saveRentalHistoryToFile(rentalhistory);
+
+        cout << "Request processed and rental history updated.\n";
+    } else {
+        cout << "Invalid choice or cancelled.\n";
+    }
+}
+
+
+
+
+
+
+void employee(const User& employee) {
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    int choice;
+    while (true) {
+        cout << "\n=== Employee Panel (" << employee.name << ") ===\n";
+        cout << "[1] View Available Cars\n";
+        cout << "[2] Return a Car\n";
+        cout << "[3] Rent Approval\n";
+        cout << "[4] Logout\n";
+        cout << "Choice: ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1:
+                rentalSystem.chooseCarBrand();
+                break;
+            case 2: {
+				
+                string plate;
+                cout << "Enter plate number to return: ";
+                cin >> plate;
+                bool found = false;
+                for (auto& car : rentalSystem.getCars()) {
+                    if (find(car.platenum.begin(), car.platenum.end(), plate) == car.platenum.end()) {
+                        // Plate not in list, maybe it was rented before
+                        car.platenum.push_back(plate);
+                        car.availability = true;
+                        cout << "Car with plate " << plate << " returned successfully.\n";
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    cout << "Plate not recognized or already returned.\n";
+                }
+                break;
+            }
+            case 3:
+            	rentapproval();
+            	break;
+            case 4:
+                system("cls");
+                return;
+            default:
+                cout << "Invalid choice.\n";
+        }
+        system("pause");
+        system("cls");
+    }
+}
+
+void loadingscreen() {
+	HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217 << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+	cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      PRESS ENTER TO START! ";
+	cin.get();
+	Sleep(1200);
+    system("cls");
+	
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "              ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "              ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT.";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "                            ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "                            ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT..";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                          ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "                                          ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT...";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "              ||-----\\                                          ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "              ||-----/                                          ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT.";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "                            ||-----\\                                          ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "                            ||-----/                                          ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT..";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "                                          ||-----\\                                          ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "                                          ||-----/                                          ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT...";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "              ||-----\\                                          ||-----\\                                          ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "              ||-----/                                          ||-----/                                          ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT.";
+    Sleep(1200);
+    system("cls");
+    
+    SetConsoleTextAttribute(h,2);
+    cout << "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                  " << (char)218; // +
+    for (int i = 0; i < 12; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+    cout << "                                  " << (char)179 << "            " << (char)179 << endl;
+	cout << "                             " << (char)218; // +
+    for (int i = 0; i < 22; i++) cout << (char)196; // -
+    cout << (char)191 << endl; 
+    cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196; // -
+    cout << (char)191;
+	SetConsoleTextAttribute(h,7);
+	cout << "                            ||-----\\                                          ||-----\\                                          ||-----\\ " << endl;
+	SetConsoleTextAttribute(h,2);
+    cout << "                             " << (char)179 << "                      " << (char)179;
+	for (int i = 0; i < 20; i++) cout << (char)196;
+    cout << (char)217;
+    SetConsoleTextAttribute(h,7);
+	cout << "                            ||-----/                                          ||-----/                                          ||-----/ " << endl;
+	SetConsoleTextAttribute(h,2);
+	cout << "                             " << (char)179 << "                      " << (char)179 << endl;
+    cout << "                   " << (char)218; // +
+    for (int i = 0; i < 42; i++) cout << (char)196; // -
+    cout << (char)191 << endl;
+	cout << "                   " << (char)179 << "                                          " << (char)179 << endl;
+    cout << "                   " << (char)192; // +
+	for (int i = 0; i < 42; i++) cout << (char)198;
+    cout << (char)217 << endl;
+    cout << "\n\n\n\n\n\t\t\t\t\t\t\t\t\t\t\t      LOADING PLEASE WAIT..";
+    Sleep(1200);
+    system("cls");
+    
+}
+        
+
+
+int main(){
+loadRentalHistoryFromFile(rentalhistory);
+loadUsersFromFile();
+
+loadingscreen();
+ rentalSystem.allcars();
+ seedDefaultUsers();
+ welcome();
+return 0;
+}
