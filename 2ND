@@ -826,19 +826,14 @@ void admin() {
                 cout << "Enter password: ";
                 char ch;
                 newEmp.password = "";
-                while ((ch = _getch()) != '\r') {
-                    newEmp.password += ch;
-                    cout << '*';
-                }
-                inputpassword = "";
 while ((ch = _getch()) != '\r'){
         if (ch == '\b') {
-            if (!inputpassword.empty()) {
-               inputpassword.erase(inputpassword.size() - 1);
+            if (!newEmp.password.empty()) {
+               newEmp.password.erase(inputpassword.size() - 1);
                 cout << "\b \b";
             }
         } else {
-            inputpassword += ch;
+            newEmp.password += ch;
             cout << '*';
         }
     }
